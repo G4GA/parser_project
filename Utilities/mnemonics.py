@@ -1,14 +1,15 @@
-def match_mnemonic (code_inst):
+def match (code_inst):
     for monic in mnemonics:
         if code_inst[0] == monic['mnemonic']:
             return monic
     return None
 
 class AddressingModes:
-    INH = 'INH'
-    IMM = 'IMM'
-    DIR = 'DIR'
-    EXT = 'EXT'
+    INH = 0
+    IMM = 1
+    IMM_EXT = 2
+    DIR = 3
+    EXT = 4
 
 mnemonics = [
     {
@@ -63,7 +64,7 @@ mnemonics = [
     },
     {
         'mnemonic':'ADDD',
-        'IMM':'C3 jj kk',
+        'IMM_EXT':'C3 jj kk',
         'DIR':'D3 dd',
         'EXT':'F3 hh ll',
         'syze':2,
