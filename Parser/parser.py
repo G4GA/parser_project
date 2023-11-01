@@ -6,72 +6,126 @@ from Utilities import files
 from Utilities import mnemonics
 
 class Parser:
-    def __init__ (self,file_path):
+    def __init__ (self,file_path,write_path):
         self._asm_lines = []
         self._code_str = ''
-        self._current = 0
-        self._labels = []
+        self._current = ''
+        self._tabsim = []
         self._operation_lines = []
         self._file_path = file_path
+        self.write_path = write_path
 
     def run (self):
         self._load_file(self._file_path)
 
         while(self._asm_lines):
-            self._parse_line()
-        
-        self._operation_lines.append(hex(self._current).lstrip("0x").upper())
-        
-        self._write_file('P4.o')
+            if self._parse_line():
+                break
+
+        self._write_file(self.write_path)
 
     def _parse_line (self):
         asm_line = self._asm_lines.pop(0).lstrip().split(' ')
+        if '\t' in asm_line[0]:
+            label = asm_line[0].split('\t')
+            asm_line[0] = label[1]
+            asm_line.insert(0,label[0])
         op_code = ''
+        is_end = False
         try:
-            if (asm_line[0] == 'ORG'):
-                self._current = stov(asm_line[1])
-            else:
-                monic = mnemonics.match(asm_line[0])
-                
-                if (monic is None):
-                    asm_line = self._label(asm_line)
+                asm_line = self._label(asm_line)
 
                 if (asm_line):
-                    monic = mnemonics.match(asm_line[0])
-                    op_code = self._get_op_code(asm_line,monic)
-                    self._operation_lines.append(f'{op_code}\n')
+                    asm_line,is_end = self._parse_directive(asm_line,is_end)
 
+                if (asm_line):
+                    if (self._current != ''):
+                        monic = mnemonics.m_match(asm_line[0])
+                        op_code = self._get_op_code(asm_line,monic)
+                    else:
+                        raise InvalidSyntax('Must define line address first',-1)
+                    self._operation_lines.append(f'{op_code}\n')
 
         except IndexError:
             raise InvalidSyntax('Missing arguments',self._current)
-        
+
         except IndentationError or ValueError:
             raise InvalidSyntax('Invalid number',self._curent)
+
+        return is_end
 
     def _get_op_code(self,asm_line,monic):
         if (monic is None):
             raise InvalidSyntax('Invalid instruction',self.current)
         op_code = ''
-        
+
         if (len(asm_line) == 1 and monic.get('INH')):
-            op_code = f'{hex(self._current).lstrip("0x").upper()} {monic["INH"]}'
+            op_code = f'{format(self._current,"04x").upper()} {monic["INH"]}'
 
             self._current += len(monic["INH"].split(' '))
 
         elif (asm_line[1].startswith('#') and monic.get('IMM')):
             op_code = self._parse_IMM(asm_line[1],monic['IMM'])
-            op_code = f'{hex(self._current).lstrip("0x").upper()} {op_code}'
+            op_code = f'{format(self._current,"04x").upper()} {op_code}'
 
             self._current += len(monic["IMM"].split(' '))
         else:
             op_code,proto = self._parse_args(asm_line[1],monic)
-            op_code = f'{hex(self._current).lstrip("0x").upper()} {op_code}'
+            op_code = f'{format(self._current,"04x").upper()} {op_code}'
 
             self._current += len(monic[proto].split(' '))
 
-        
+
         return op_code
-    
+
+    def _parse_directive (self,asm_line:list[str],is_end: bool):
+        monic = mnemonics.d_match(asm_line[0])
+        if (monic is not None):
+            try:
+                asm_line.pop(0)
+                if monic == 0:
+                    self._current = 0
+                elif monic == 1:
+                    self._current = stov(asm_line.pop(0))
+                elif (self._current != ''):
+                    if monic == 2:
+                        self._operation_lines.append(format(self._current,'04x').upper())
+                        is_end = True
+                    elif monic == 3:
+                        data = asm_line.pop(0).split(',')
+                        data_str = ''
+                        for item in data:
+                            if item.startswith("'"):
+                                data_str = data_str + ord(item.lstrip("'"))
+                            else:
+                                data_str = f'{data_str} {stov(item)}'
+
+                        self._operation_lines.append(f'{format(self._current,"04x").upper()}{data_str}')
+                        self._current = self._current + len(data)
+                    elif monic == 4:
+                        pass
+                    elif monic == 5:
+                        pass
+                    elif monic == 6:
+                        pass
+                    elif monic == 7:
+                        pass
+                    elif monic == 8:
+                        pass
+                    elif monic == 9:
+                        pass
+                else:
+                    raise InvalidSyntax('Must define line address first',-1)
+            except IndexError:
+                raise InvalidSyntax('Missing arguments',self._current)
+            except ValueError:
+                raise InvalidSyntax("Invalid Addres Number",self._current)
+        return asm_line,is_end
+
+
+
+
+
     def _parse_IMM (self,asm_line:str,proto:str):
         proto = proto.split(' ')
         op_code = proto.pop(0)
@@ -87,14 +141,14 @@ class Parser:
             op_code += f' {asm_line}'
 
         return op_code
-    
+
     def _parse_args (self,asm_line:str,monic):
         op_code = ''
         try:
             asm_line, proto = self._get_addr_mode(asm_line,monic)
         except IndexError:
             raise InvalidSyntax('Missing arguments',self._current)
-        
+
         if (proto == 'DIR'):
             asm_line = format(asm_line,'02x').upper()
             op_code = f'{monic[proto].split(" ")[0]} {asm_line}'
@@ -103,58 +157,50 @@ class Parser:
             asm_line = format(asm_line,'04x').upper()
             asm_line = f'{asm_line[:2]} {asm_line[2:]}'
             op_code = f'{monic[proto].split(" ")[0]} {asm_line}'
-        
+
         return op_code,proto
-        
+
 
 
     def _get_addr_mode (self,asm_line:str,monic):
         if (asm_line.startswith(',')):
             pass
-        
+
         else:
             asm_line = asm_line.split(',')
-            
+
             if (len(asm_line) > 1):
                 pass
             else:
                 asm_line = stov(asm_line[0])
                 if (asm_line > 255 and monic.get('EXT')):
                     return asm_line, 'EXT'
-                
+
                 elif (asm_line <= 255 and monic.get('DIR')):
                     return asm_line, 'DIR'
-                
+
                 else:
                     raise InvalidSyntax('Bas Address mode',self.current)
 
-            
 
 
-    def _label(self,asm_line):
-        asm_line = asm_line[0].split('\t')
-        try:
-            if (asm_line[1] == 'EQU'):
-                self._labels.append({asm_line[0]:int(stov(asm_line[2]))})
-                asm_line.clear()
 
-            elif (asm_line[1] == 'END'):
-                self._labels.append({asm_line[0]:self._current})
-                asm_line.clear()
-
-            elif (mnemonics.match(asm_line[1]) is not None):
-                self._labels.append({asm_line[0]:self._current})
-                asm_line.pop(0)
-
-            else:
-                raise InvalidSyntax('Invalid arguments',self)
-
-        except IndexError as err:
-            raise InvalidSyntax('Missing arguments',self._current)
-        
-        except IndentationError or ValueError:
-            raise InvalidSyntax('Invalid number',self._current)
-
+    def _label(self,asm_line:list[str]):
+        if mnemonics.m_match(asm_line[0]) is None and mnemonics.d_match(asm_line[0]) is None:
+            label = asm_line.pop(0)
+            try:
+                if asm_line[0] == 'EQU':
+                    equ_d = {label:stov(asm_line[1])}
+                    self._tabsim.append(equ_d)
+                    asm_line.clear()
+                elif (self._current != ''):
+                    self._tabsim.append({label:self._current})
+                else:
+                    raise InvalidSyntax('Must define line address first',-1)
+            except IndexError:
+                raise InvalidSyntax('Missing arguments',self._current)
+            except ValueError:
+                raise InvalidSyntax("Invalid Addres Number",self._current)
         return asm_line
 
 

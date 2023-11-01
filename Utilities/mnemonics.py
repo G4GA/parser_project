@@ -1,7 +1,13 @@
-def match (code_inst):
+def m_match (code_inst):
     for monic in mnemonics:
         if code_inst == monic['mnemonic']:
             return monic
+    return None
+
+def d_match (code_inst:str):
+    for index,d in enumerate(direc):
+        if code_inst == d:
+            return index
     return None
 
 class AddrMd:
@@ -114,4 +120,17 @@ mnemonics = [
         'mnemonic':'BGND',
         'INH':'00',
     },
+]
+
+direc = [
+    'START',
+    'ORG',
+    'END',
+    'DC.B',
+    'DC.W',
+    'DSZ',
+    'zmb',
+    'FCB',
+    'FCC',
+    'FILL'
 ]

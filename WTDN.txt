@@ -1,1 +1,4 @@
-- Start P7
+- Do directives starting from DC.B
+
+Context: (Dafuq am i doing writing this in english?) We were writing all directives
+but we are not sure about what goes to the COP for some of them, so we'll ask the teacher first
