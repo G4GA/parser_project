@@ -22,6 +22,9 @@ class Parser:
             if self._parse_line():
                 break
 
+        for i in self._operation_lines:
+            print(i)
+
         self._write_file(self.write_path)
 
     def _parse_line (self):
@@ -89,31 +92,85 @@ class Parser:
                     self._current = stov(asm_line.pop(0))
                 elif (self._current != ''):
                     if monic == 2:
-                        self._operation_lines.append(format(self._current,'04x').upper())
+                        self._operation_lines.append(f'{format(self._current,"04x").upper()}')
                         is_end = True
                     elif monic == 3:
-                        data = asm_line.pop(0).split(',')
                         data_str = ''
-                        for item in data:
-                            if item.startswith("'"):
-                                data_str = data_str + ord(item.lstrip("'"))
-                            else:
-                                data_str = f'{data_str} {stov(item)}'
+                        data = []
+                        if (asm_line):
+                            data = asm_line.pop(0).split(',')
 
-                        self._operation_lines.append(f'{format(self._current,"04x").upper()}{data_str}')
+                            for item in data:
+                                if item.startswith("'"):
+                                    u_comma = "'"
+                                    data_str = f'{data_str} {format(ord(item.lstrip(u_comma)),"02x").upper()}'
+                                else:
+                                    data_str = f'{data_str} {format(stov(item),"02x").upper()}'
+                        else:
+                            data_str = ' 00'
+                            data.append(data_str)
+
+                        self._operation_lines.append(f'{format(self._current,"04x").upper()}{data_str}\n')
                         self._current = self._current + len(data)
                     elif monic == 4:
-                        pass
-                    elif monic == 5:
-                        pass
-                    elif monic == 6:
-                        pass
+                        data_str = ''
+                        data = []
+                        if (asm_line):
+                            data = asm_line.pop(0).split(',')
+                            for item in data:
+                                if item.startswith("'"):
+                                    u_comma = "'"
+                                    item_str = format(ord(item.lstrip(u_comma)),"04x").upper()
+                                    item_str = f'{item_str[:2]} {item_str[2:]}'
+                                    data_str = f'{data_str} {item_str}'
+                                else:
+                                    item_str = format(stov(item),"04x").upper()
+                                    item_str = f'{item_str[:2]} {item_str[2:]}'
+                                    data_str = f'{data_str} {item_str}'
+                        else:
+                            data_str = ' 00 00'
+                            data.append(data_str)
+
+                        self._operation_lines.append(f'{format(self._current,"04x").upper()}{data_str}\n')
+                        self._current = self._current + (len(data)*2)
+                    elif monic == 5 or monic == 6:
+                        data = int(asm_line.pop(0))
+                        data_str = ''
+                        for i in range(data):
+                            data_str = data_str + ' 00'
+                        self._operation_lines.append(f'{format(self._current,"04x").upper()}{data_str}\n')
+                        self._current = self._current + data
                     elif monic == 7:
-                        pass
+                        data_str = ''
+                        data = []
+                        if (asm_line):
+                            data = asm_line.pop(0).split(',')
+
+                            for item in data:
+                                data_str = f'{data_str} {format(stov(item),"02x").upper()}'
+                        else:
+                            data_str = ' 00'
+                            data.append(data_str)
+
+                        self._operation_lines.append(f'{format(self._current,"04x").upper()}{data_str}\n')
+                        self._current = self._current + len(data)
                     elif monic == 8:
-                        pass
+                        cons_str = [x for x in asm_line.pop(0).strip('/')]
+                        data_str = ''
+                        for char in cons_str:
+                            char = format(ord(char),'02x').upper()
+                            data_str = f'{data_str} {char}'
+                        self._operation_lines.append(f'{format(self._current,"04x").upper()}{data_str}\n')
+                        self._current = self._current + len(cons_str)
                     elif monic == 9:
-                        pass
+                        data,length = asm_line.pop(0).split(',')
+                        length = int(length)
+                        data = int(data)
+                        data_str = ''
+                        for i in range (length):
+                            data_str = data_str + f' {format(data,"02x").upper()}'
+                        self._operation_lines.append(f'{format(self._current,"04x").upper()}{data_str}\n')
+                        self._current = self._current + length
                 else:
                     raise InvalidSyntax('Must define line address first',-1)
             except IndexError:
@@ -217,4 +274,5 @@ class Parser:
 
     def _write_file (self, path:str):
         with open(path,'w',encoding='utf-8') as file:
-            file.writelines(self._operation_lines)
+            for i in self._operation_lines:
+                file.write(i)

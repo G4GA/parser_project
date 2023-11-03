@@ -128,7 +128,7 @@ direc = [
     'END',
     'DC.B',
     'DC.W',
-    'DSZ',
+    'BSZ',
     'zmb',
     'FCB',
     'FCC',

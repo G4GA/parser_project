@@ -1,4 +1,7 @@
-- Do directives starting from DC.B
+- Do directives starting from DC.B,DC.W
 
 Context: (Dafuq am i doing writing this in english?) We were writing all directives
 but we are not sure about what goes to the COP for some of them, so we'll ask the teacher first
+
+I asked the teacher and it's just how I thought it would be, first the addres and then just copy the values
+in hex, being a word for DC.W and a byte for DC.B
