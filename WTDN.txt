@@ -1,7 +1,10 @@
-- Do directives starting from DC.B,DC.W
+- Pending p8 and p9
 
 Context: (Dafuq am i doing writing this in english?) We were writing all directives
 but we are not sure about what goes to the COP for some of them, so we'll ask the teacher first
 
 I asked the teacher and it's just how I thought it would be, first the addres and then just copy the values
-in hex, being a word for DC.W and a byte for DC.B
+in hex, being a word for DC.W and a byte for DC.B.
+
+I finished p7 and all of it's directives successfully, there are only 2 left to finish, which i'll do it tomorrow
+saturday
