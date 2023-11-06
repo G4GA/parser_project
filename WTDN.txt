@@ -8,3 +8,5 @@ in hex, being a word for DC.W and a byte for DC.B.
 
 I finished p7 and all of it's directives successfully, there are only 2 left to finish, which i'll do it tomorrow
 saturday
+
+I finished relative addressing, we have just one more to go, IDX. plus i have to add label handling.

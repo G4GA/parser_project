@@ -1,4 +1,4 @@
-import ctypes
+from ctypes import c_int16,c_uint16,c_int8,c_uint8
 from Parser.exceptions import InvalidSyntax
 from Utilities import error_codes as e_cds
 from Utilities.casting import stov
@@ -12,6 +12,7 @@ class Parser:
         self._current = ''
         self._tabsim = []
         self._operation_lines = []
+        self._pending = []
         self._file_path = file_path
         self.write_path = write_path
 
@@ -21,9 +22,6 @@ class Parser:
         while(self._asm_lines):
             if self._parse_line():
                 break
-
-        for i in self._operation_lines:
-            print(i)
 
         self._write_file(self.write_path)
 
@@ -89,7 +87,7 @@ class Parser:
                 if monic == 0:
                     self._current = 0
                 elif monic == 1:
-                    self._current = stov(asm_line.pop(0))
+                    self._current = stov(asm_line.pop(0),self._tabsim)
                 elif (self._current != ''):
                     if monic == 2:
                         self._operation_lines.append(f'{format(self._current,"04x").upper()}')
@@ -184,18 +182,22 @@ class Parser:
 
 
     def _parse_IMM (self,asm_line:str,proto:str):
-        proto = proto.split(' ')
-        op_code = proto.pop(0)
+        proto_list = proto.split(' ')
+        op_code = proto_list.pop(0)
         asm_line = stov(asm_line[1:])
 
-        if (len(proto) > 1):
-            asm_line = format(asm_line,'04x').upper()
-            asm_line = f'{asm_line[:2]} {asm_line[2:]}'
-            op_code += f' {asm_line}'
+        if asm_line is not None:
+            if (len(proto) > 1):
+                asm_line = format(asm_line,'04x').upper()
+                asm_line = f'{asm_line[:2]} {asm_line[2:]}'
+                op_code += f' {asm_line}'
 
+            else:
+                asm_line = format(asm_line,'02x').upper()
+                op_code += f' {asm_line}'
         else:
-            asm_line = format(asm_line,'02x').upper()
-            op_code += f' {asm_line}'
+            op_code = proto
+            self
 
         return op_code
 
@@ -215,29 +217,46 @@ class Parser:
             asm_line = f'{asm_line[:2]} {asm_line[2:]}'
             op_code = f'{monic[proto].split(" ")[0]} {asm_line}'
 
+        elif (proto == 'IDX'):
+            pass
+
+        elif (proto == 'REL'):
+            rel = monic['REL'].split(' ')
+            if (len(rel) > 2):
+                result = c_uint16(asm_line-(self._current+len(rel))).value
+                rstr = format(result,'04x').upper()
+                op_code = f'{rel[0]} {rel[1]} {rstr[:2]} {rstr[2:]}'
+            else:
+                result = c_int16 (asm_line-(self._current+len(rel))).value
+                u_result = c_uint8 (asm_line-(self._current+len(rel))).value
+                if (result < 0 and u_result in range(0x80,0xFF)):
+                    rstr = format(u_result,'02x').upper()
+                    op_code = f'{rel[0]} {rstr}'
+                elif (not (result < 0) and u_result in range(0x00,0x7F)):
+                    rstr = format(u_result,'02x').upper()
+                    op_code = f'{rel[0]} {rstr}'
+                else:
+                    op_code = 'NOP'
         return op_code,proto
 
 
 
-    def _get_addr_mode (self,asm_line:str,monic):
-        if (asm_line.startswith(',')):
-            pass
-
+    def _get_addr_mode (self,asm_line,monic):
+        asm_line = asm_line.split(',')
+        
+        if (len(asm_line) > 1):
+            return asm_line, 'IDX'
         else:
-            asm_line = asm_line.split(',')
+            asm_line = stov(asm_line[0],self._tabsim)
+            if (asm_line > 255 and monic.get('EXT')):
+                return asm_line, 'EXT'
 
-            if (len(asm_line) > 1):
-                pass
+            elif (asm_line <= 255 and monic.get('DIR')):
+                return asm_line, 'DIR'
+            elif (monic.get('REL')):
+                return asm_line, 'REL'
             else:
-                asm_line = stov(asm_line[0])
-                if (asm_line > 255 and monic.get('EXT')):
-                    return asm_line, 'EXT'
-
-                elif (asm_line <= 255 and monic.get('DIR')):
-                    return asm_line, 'DIR'
-
-                else:
-                    raise InvalidSyntax('Bas Address mode',self.current)
+                raise InvalidSyntax('Bas Address mode',self.current)
 
 
 
@@ -247,7 +266,7 @@ class Parser:
             label = asm_line.pop(0)
             try:
                 if asm_line[0] == 'EQU':
-                    equ_d = {label:stov(asm_line[1])}
+                    equ_d = {label:stov(asm_line[1],self._tabsim)}
                     self._tabsim.append(equ_d)
                     asm_line.clear()
                 elif (self._current != ''):
