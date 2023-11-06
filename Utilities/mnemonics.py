@@ -142,6 +142,11 @@ mnemonics = [
     {
         'mnemonic':'LBNE',
         'REL':'18 26 qq rr'
+    },
+    {
+        'mnemonic':'JMP',
+        'EXT':'06 hh ll',
+        'IDX':'05'
     }
 ]
 

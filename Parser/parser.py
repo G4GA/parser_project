@@ -228,9 +228,12 @@ class Parser:
                 op_code = f'{monic[proto].split(" ")[0]} {asm_line}'
 
             elif (proto == 'EXT'):
-                asm_line = format(asm_line,'04x').upper()
-                asm_line = f'{asm_line[:2]} {asm_line[2:]}'
-                op_code = f'{monic[proto].split(" ")[0]} {asm_line}'
+                if asm_line == None:
+                    op_code = monic[proto]
+                else:
+                    asm_line = format(asm_line,'04x').upper()
+                    asm_line = f'{asm_line[:2]} {asm_line[2:]}'
+                    op_code = f'{monic[proto].split(" ")[0]} {asm_line}'
 
             elif (proto == 'IDX'):
                 number, xysp = asm_line
@@ -313,7 +316,13 @@ class Parser:
         else:
             asm_line = stov(asm_line[0],self._tabsim)
             if asm_line is None:
-                return asm_line,'REL'
+                if monic.get('REL'):
+                    return asm_line,'REL'
+                else:
+                    return asm_line,'EXT'
+
+            if monic['mnemonic'] == 'JMP':
+                return asm_line, 'EXT'
 
             elif (asm_line > 255 and monic.get('EXT')):
                 return asm_line, 'EXT'
@@ -323,7 +332,7 @@ class Parser:
             elif (monic.get('REL')):
                 return asm_line, 'REL'
             else:
-                raise InvalidSyntax('Bas Address mode',self.current)
+                raise InvalidSyntax('Bas Address mode',self._current)
 
 
 
