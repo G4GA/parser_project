@@ -3,6 +3,6 @@ from Parser.exceptions import InvalidSyntax
 import os
 
 if __name__ == '__main__':
-    filepath = 'ASMFiles/P8.asm' if os.name == 'posix' else 'ASMFiles\P8.asm'
-    myParser = Parser(filepath,'P8.o')
+    filepath = 'ASMFiles/P9.asm' if os.name == 'posix' else 'ASMFiles\P9.asm'
+    myParser = Parser(filepath,'P9.o')
     myParser.run()
