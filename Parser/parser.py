@@ -23,6 +23,13 @@ class Parser:
             if self._parse_line():
                 break
 
+        self._asm_lines = self.code_str.splitlines()
+        self._operation_lines.clear()
+
+        while(self._asm_lines):
+            if self._parse_line():
+                break
+        
         self._write_file(self.write_path)
 
     def _parse_line (self):
@@ -72,14 +79,18 @@ class Parser:
             self._current += len(monic["IMM"].split(' '))
         else:
             op_code,proto = self._parse_args(asm_line[1],monic)
+            op_str = op_code
             op_code = f'{format(self._current,"04x").upper()} {op_code}'
 
-            self._current += len(monic[proto].split(' '))
+            if op_str == 'NOP':
+                self._current += len(monic[proto].split(' '))
+            else:
+                self._current += len(op_str.split(' '))
 
 
         return op_code
 
-    def _parse_directive (self,asm_line:list[str],is_end: bool):
+    def _parse_directive (self,asm_line:list[str],is_end: bool,is_pending=False):
         monic = mnemonics.d_match(asm_line[0])
         if (monic is not None):
             try:
@@ -103,7 +114,7 @@ class Parser:
                                     u_comma = "'"
                                     data_str = f'{data_str} {format(ord(item.lstrip(u_comma)),"02x").upper()}'
                                 else:
-                                    data_str = f'{data_str} {format(stov(item),"02x").upper()}'
+                                    data_str = f'{data_str} {format(stov(item,self._tabsim),"02x").upper()}'
                         else:
                             data_str = ' 00'
                             data.append(data_str)
@@ -122,7 +133,7 @@ class Parser:
                                     item_str = f'{item_str[:2]} {item_str[2:]}'
                                     data_str = f'{data_str} {item_str}'
                                 else:
-                                    item_str = format(stov(item),"04x").upper()
+                                    item_str = format(stov(item,self._tabsim),"04x").upper()
                                     item_str = f'{item_str[:2]} {item_str[2:]}'
                                     data_str = f'{data_str} {item_str}'
                         else:
@@ -145,7 +156,7 @@ class Parser:
                             data = asm_line.pop(0).split(',')
 
                             for item in data:
-                                data_str = f'{data_str} {format(stov(item),"02x").upper()}'
+                                data_str = f'{data_str} {format(stov(item,self._tabsim),"02x").upper()}'
                         else:
                             data_str = ' 00'
                             data.append(data_str)
@@ -184,10 +195,10 @@ class Parser:
     def _parse_IMM (self,asm_line:str,proto:str):
         proto_list = proto.split(' ')
         op_code = proto_list.pop(0)
-        asm_line = stov(asm_line[1:])
+        asm_line = stov(asm_line[1:],self._tabsim)
 
         if asm_line is not None:
-            if (len(proto) > 1):
+            if (len(proto_list) > 1):
                 asm_line = format(asm_line,'04x').upper()
                 asm_line = f'{asm_line[:2]} {asm_line[2:]}'
                 op_code += f' {asm_line}'
@@ -207,36 +218,78 @@ class Parser:
             asm_line, proto = self._get_addr_mode(asm_line,monic)
         except IndexError:
             raise InvalidSyntax('Missing arguments',self._current)
+        
+        if asm_line is None:
+            self._pending.append(len(self._operation_lines))
+            op_code = monic[proto]
+        else:
+            if (proto == 'DIR'):
+                asm_line = format(asm_line,'02x').upper()
+                op_code = f'{monic[proto].split(" ")[0]} {asm_line}'
 
-        if (proto == 'DIR'):
-            asm_line = format(asm_line,'02x').upper()
-            op_code = f'{monic[proto].split(" ")[0]} {asm_line}'
+            elif (proto == 'EXT'):
+                asm_line = format(asm_line,'04x').upper()
+                asm_line = f'{asm_line[:2]} {asm_line[2:]}'
+                op_code = f'{monic[proto].split(" ")[0]} {asm_line}'
 
-        elif (proto == 'EXT'):
-            asm_line = format(asm_line,'04x').upper()
-            asm_line = f'{asm_line[:2]} {asm_line[2:]}'
-            op_code = f'{monic[proto].split(" ")[0]} {asm_line}'
-
-        elif (proto == 'IDX'):
-            pass
-
-        elif (proto == 'REL'):
-            rel = monic['REL'].split(' ')
-            if (len(rel) > 2):
-                result = c_uint16(asm_line-(self._current+len(rel))).value
-                rstr = format(result,'04x').upper()
-                op_code = f'{rel[0]} {rel[1]} {rstr[:2]} {rstr[2:]}'
-            else:
-                result = c_int16 (asm_line-(self._current+len(rel))).value
-                u_result = c_uint8 (asm_line-(self._current+len(rel))).value
-                if (result < 0 and u_result in range(0x80,0xFF)):
-                    rstr = format(u_result,'02x').upper()
-                    op_code = f'{rel[0]} {rstr}'
-                elif (not (result < 0) and u_result in range(0x00,0x7F)):
-                    rstr = format(u_result,'02x').upper()
-                    op_code = f'{rel[0]} {rstr}'
+            elif (proto == 'IDX'):
+                number, xysp = asm_line
+                number = stov(number,[]) if not number == '' else 0
+                
+                xysp = mnemonics.get_xysp(xysp)
+                if (number in range (16)):
+                    p_bin = 'rr0nnnnn'
+                    number = format(number,'05b')
+                    p_bin = p_bin.replace('rr',xysp)
+                    p_bin = p_bin.replace('nnnnn',number)
+                    p_bin = format(int(p_bin,2),'02x').upper()
+                    op_code = f'{monic[proto]} {p_bin}'
+                elif (number in range(-16,1)):
+                    p_bin = 'rr0nnnnn'
+                    number = c_uint8 (number).value
+                    number = format(number,'08b')
+                    number = number[-5:]
+                    p_bin = p_bin.replace('rr',xysp)
+                    p_bin = p_bin.replace('nnnnn',number)
+                    number = format(int(number,2),'02x').upper()
+                    p_bin = format(int(p_bin,2),'02x').upper()
+                    op_code = f'{monic[proto]} {p_bin}'
                 else:
-                    op_code = 'NOP'
+                    p_bin = '111rr0zs'.replace('rr',xysp)
+                    if (number in range (-256,256)):
+                        p_bin = p_bin.replace('z','0')
+                        if (number < 0):
+                            p_bin = p_bin.replace('s','1')
+                        else:
+                            p_bin = p_bin.replace('s','0')
+                        number = format(c_uint8(number).value,'02x').upper()
+                        op_code = f'{monic[proto]} {format(int(p_bin,2),"02x").upper()} {number}'
+                    else:
+                        p_bin = p_bin.replace('z','0')
+                        if (number < 0):
+                            p_bin = p_bin.replace('s','1')
+                        else:
+                            p_bin = p_bin.replace('s','0')
+                        number = format(c_uint16(number).value,'04x').upper()
+                        op_code = f'{monic[proto]} {format(int(p_bin,2),"02x").upper()} {number[:2]} {number[2:]}'
+
+            elif (proto == 'REL'):
+                rel = monic['REL'].split(' ')
+                if (len(rel) > 2):
+                    result = c_uint16(asm_line-(self._current+len(rel))).value
+                    rstr = format(result,'04x').upper()
+                    op_code = f'{rel[0]} {rel[1]} {rstr[:2]} {rstr[2:]}'
+                else:
+                    result = c_int16 (asm_line-(self._current+len(rel))).value
+                    u_result = c_uint8 (asm_line-(self._current+len(rel))).value
+                    if (result < 0 and u_result in range(0x80,0x100)):
+                        rstr = format(u_result,'02x').upper()
+                        op_code = f'{rel[0]} {rstr}'
+                    elif (not (result < 0) and u_result in range(0x00,0x80)):
+                        rstr = format(u_result,'02x').upper()
+                        op_code = f'{rel[0]} {rstr}'
+                    else:
+                        op_code = 'NOP'
         return op_code,proto
 
 
@@ -248,7 +301,10 @@ class Parser:
             return asm_line, 'IDX'
         else:
             asm_line = stov(asm_line[0],self._tabsim)
-            if (asm_line > 255 and monic.get('EXT')):
+            if asm_line is None:
+                return asm_line,'REL'
+            
+            elif (asm_line > 255 and monic.get('EXT')):
                 return asm_line, 'EXT'
 
             elif (asm_line <= 255 and monic.get('DIR')):
@@ -264,13 +320,19 @@ class Parser:
     def _label(self,asm_line:list[str]):
         if mnemonics.m_match(asm_line[0]) is None and mnemonics.d_match(asm_line[0]) is None:
             label = asm_line.pop(0)
+            is_in = False
+            for item in self._tabsim:
+                if (item.get(label)):
+                    is_in = True
             try:
                 if asm_line[0] == 'EQU':
                     equ_d = {label:stov(asm_line[1],self._tabsim)}
-                    self._tabsim.append(equ_d)
+                    if not is_in:
+                        self._tabsim.append(equ_d)
                     asm_line.clear()
                 elif (self._current != ''):
-                    self._tabsim.append({label:self._current})
+                    if not is_in:
+                        self._tabsim.append({label:self._current})
                 else:
                     raise InvalidSyntax('Must define line address first',-1)
             except IndexError:
